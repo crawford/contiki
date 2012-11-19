@@ -166,6 +166,83 @@ uint8_t rng_get_uint8(void)
 	return j;
 }
 
+struct gpio {
+	volatile uint8_t *port;
+	uint8_t pin;
+	int flags;
+};
+
+#define GPIO_INPUT        0x00
+#define GPIO_OUTPUT       0x01
+
+#define GPIO_PULLUP       0x02
+
+#define GPIO_CAPACITY_2MA 0x00
+#define GPIO_CAPACITY_4MA 0x04
+#define GPIO_CAPACITY_6MA 0x08
+#define GPIO_CAPACITY_8MA 0x0C
+
+#define GPIO_OUTPUT_LOW   0x00
+#define GPIO_OUTPUT_HIGH  0x10
+
+struct gpio gpio_array[] = {
+	{ &PORTE, PE2, GPIO_OUTPUT | GPIO_OUTPUT_HIGH },
+	{ &PORTE, PE3, GPIO_OUTPUT | GPIO_OUTPUT_HIGH },
+	{ &PORTE, PE4, GPIO_OUTPUT | GPIO_OUTPUT_HIGH },
+	{ &PORTE, PE5, GPIO_INPUT },
+};
+
+static inline volatile uint8_t *ddr_for_port(volatile uint8_t *port) {
+	if (port == &PORTA) return &DDRA;
+	else if (port == &PORTB) return &DDRB;
+	else if (port == &PORTC) return &DDRC;
+	else if (port == &PORTD) return &DDRD;
+	else if (port == &PORTE) return &DDRE;
+	else if (port == &PORTF) return &DDRF;
+
+	printf("WARN: Invalid port specified\n");
+	return NULL;
+}
+
+void gpio_set_value(struct gpio *gpio, unsigned char value) {
+	if (value)
+		*gpio->port |= (1 << gpio->pin);
+	else
+		*gpio->port &= ~(1 << gpio->pin);
+}
+
+void gpio_init(void)
+{
+	struct gpio *gpio_entry = gpio_array;
+
+	while (gpio_entry) {
+		volatile uint8_t *cur_port = gpio_entry->port;
+		uint8_t dd = 0x00;
+		uint8_t pin = 0x00;
+		struct gpio *next_gpio_entry = NULL;
+
+		struct gpio *t_gpio_entry = gpio_entry;
+		for (; t_gpio_entry->port != NULL; t_gpio_entry++) {
+			if (t_gpio_entry->port != cur_port) {
+				if (next_gpio_entry == NULL)
+					next_gpio_entry = t_gpio_entry;
+				continue;
+			}
+
+			if (t_gpio_entry->flags & GPIO_OUTPUT)
+				dd |= (1 << t_gpio_entry->pin);
+
+			if (t_gpio_entry->flags & GPIO_PULLUP ||
+			    t_gpio_entry->flags & GPIO_OUTPUT_HIGH)
+				pin |= (1 << t_gpio_entry->pin);
+		}
+		*ddr_for_port(cur_port) = dd;
+		*cur_port = pin;
+
+		gpio_entry = next_gpio_entry;
+	}
+}
+
 /*-------------------------Low level initialization------------------------*/
 /*------Done in a subroutine to keep main routine stack usage small--------*/
 void initialize(void)
@@ -224,6 +301,8 @@ void initialize(void)
 #endif 
 
 	PRINTA("\n*******Booting %s*******\n",CONTIKI_VERSION_STRING);
+
+	gpio_init();
 
 	/* rtimers needed for radio cycling */
 	rtimer_init();
@@ -454,6 +533,10 @@ int main(void)
 			if (clocktime!=clock_seconds()) {
 				clocktime=clock_seconds();
 #endif
+
+				gpio_set_value(gpio_array, clocktime % 2);
+				gpio_set_value(gpio_array + 1, clocktime % 3 == 0);
+				gpio_set_value(gpio_array + 2, clocktime % 3 == 1);
 
 #if STAMPS
 				if ((clocktime%STAMPS)==0) {
