@@ -185,11 +185,16 @@ struct gpio {
 #define GPIO_OUTPUT_LOW   0x00
 #define GPIO_OUTPUT_HIGH  0x10
 
-struct gpio gpio_array[] = {
-	{ &PORTE, PE2, GPIO_OUTPUT | GPIO_OUTPUT_HIGH },
-	{ &PORTE, PE3, GPIO_OUTPUT | GPIO_OUTPUT_HIGH },
-	{ &PORTE, PE4, GPIO_OUTPUT | GPIO_OUTPUT_HIGH },
-	{ &PORTE, PE5, GPIO_INPUT },
+struct gpio red_led    = { &PORTE, PE2, GPIO_OUTPUT | GPIO_OUTPUT_HIGH };
+struct gpio yellow_led = { &PORTE, PE3, GPIO_OUTPUT | GPIO_OUTPUT_HIGH };
+struct gpio green_led  = { &PORTE, PE4, GPIO_OUTPUT | GPIO_OUTPUT_HIGH };
+struct gpio button     = { &PORTE, PE5, GPIO_OUTPUT | GPIO_OUTPUT_HIGH };
+
+struct gpio *gpio_array[] = {
+	&red_led,
+	&yellow_led,
+	&green_led,
+	&button,
 };
 
 static inline volatile uint8_t *ddr_for_port(volatile uint8_t *port) {
@@ -204,37 +209,37 @@ static inline volatile uint8_t *ddr_for_port(volatile uint8_t *port) {
 	return NULL;
 }
 
-void gpio_set_value(struct gpio *gpio, unsigned char value) {
+static inline void gpio_set_value(struct gpio gpio, unsigned char value) {
 	if (value)
-		*gpio->port |= (1 << gpio->pin);
+		*gpio.port |= (1 << gpio.pin);
 	else
-		*gpio->port &= ~(1 << gpio->pin);
+		*gpio.port &= ~(1 << gpio.pin);
 }
 
 void gpio_init(void)
 {
-	struct gpio *gpio_entry = gpio_array;
+	struct gpio **gpio_entry = gpio_array;
 
 	while (gpio_entry) {
-		volatile uint8_t *cur_port = gpio_entry->port;
+		volatile uint8_t *cur_port = (*gpio_entry)->port;
 		uint8_t dd = 0x00;
 		uint8_t pin = 0x00;
-		struct gpio *next_gpio_entry = NULL;
+		struct gpio **next_gpio_entry = NULL;
 
-		struct gpio *t_gpio_entry = gpio_entry;
-		for (; t_gpio_entry->port != NULL; t_gpio_entry++) {
-			if (t_gpio_entry->port != cur_port) {
+		struct gpio **t_gpio_entry = gpio_entry;
+		for (; *t_gpio_entry != NULL; t_gpio_entry++) {
+			if ((*t_gpio_entry)->port != cur_port) {
 				if (next_gpio_entry == NULL)
 					next_gpio_entry = t_gpio_entry;
 				continue;
 			}
 
-			if (t_gpio_entry->flags & GPIO_OUTPUT)
-				dd |= (1 << t_gpio_entry->pin);
+			if ((*t_gpio_entry)->flags & GPIO_OUTPUT)
+				dd |= (1 << (*t_gpio_entry)->pin);
 
-			if (t_gpio_entry->flags & GPIO_PULLUP ||
-			    t_gpio_entry->flags & GPIO_OUTPUT_HIGH)
-				pin |= (1 << t_gpio_entry->pin);
+			if ((*t_gpio_entry)->flags & GPIO_PULLUP ||
+			    (*t_gpio_entry)->flags & GPIO_OUTPUT_HIGH)
+				pin |= (1 << (*t_gpio_entry)->pin);
 		}
 		*ddr_for_port(cur_port) = dd;
 		*cur_port = pin;
@@ -534,9 +539,9 @@ int main(void)
 				clocktime=clock_seconds();
 #endif
 
-				gpio_set_value(gpio_array, clocktime % 2);
-				gpio_set_value(gpio_array + 1, clocktime % 3 == 0);
-				gpio_set_value(gpio_array + 2, clocktime % 3 == 1);
+				gpio_set_value(red_led, clocktime % 2);
+				gpio_set_value(yellow_led, 1);
+				gpio_set_value(green_led, clocktime % 3 == 1);
 
 #if STAMPS
 				if ((clocktime%STAMPS)==0) {
