@@ -50,6 +50,10 @@
 
 #include <stdint.h>
 
+#define UIP_CONF_IPV6_RPL 1
+#define RPL_BORDER_ROUTER 1
+#define UIP_CONF_IPV6     1
+
 /* The AVR tick interrupt usually is done with an 8 bit counter around 128 Hz.
  * 125 Hz needs slightly more overhead during the interrupt, as does a 32 bit
  * clock_time_t.
@@ -82,11 +86,7 @@ void clock_adjust_ticks(clock_time_t howmany);
 #define RF230BB_CONF_LEDONPORTE1  0
 
 /* COM port to be used for SLIP connection. This is usually UART0, but see above */
-#if RF230BB_CONF_LEDONPORTE1
 #define SLIP_PORT RS232_PORT_1
-#else
-#define SLIP_PORT RS232_PORT_0
-#endif
 
 /* Pre-allocated memory for loadable modules heap space (in bytes)*/
 /* Default is 4096. Currently used only when elfloader is present. Not tested on Raven */

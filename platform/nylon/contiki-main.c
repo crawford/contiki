@@ -176,24 +176,13 @@ void initialize(void)
 /* The Raven implements a serial command and data interface via uart0 to a 3290p,
  * which could be duplicated using another host computer.
  */
-#if !RF230BB_CONF_LEDONPORTE1   //Conflicts with USART0
-#ifdef RAVEN_LCD_INTERFACE
-  rs232_init(RS232_PORT_0, USART_BAUD_38400,USART_PARITY_NONE | USART_STOP_BITS_1 | USART_DATA_BITS_8);
-  rs232_set_input(0,raven_lcd_serial_input);
-#else
   /* Generic or slip connection on uart0 */
-  rs232_init(RS232_PORT_0, USART_BAUD_9600,USART_PARITY_NONE | USART_STOP_BITS_1 | USART_DATA_BITS_8);
-#endif
-#endif
+  rs232_init(RS232_PORT_0, USART_BAUD_19200,USART_PARITY_NONE | USART_STOP_BITS_1 | USART_DATA_BITS_8);
+  rs232_redirect_stdout(RS232_PORT_0);
 
   /* Second rs232 port for debugging or slip alternative */
-  rs232_init(RS232_PORT_1, USART_BAUD_57600,USART_PARITY_NONE | USART_STOP_BITS_1 | USART_DATA_BITS_8);
-  /* Redirect stdout */
-#if RF230BB_CONF_LEDONPORTE1 || defined(RAVEN_LCD_INTERFACE)
-  rs232_redirect_stdout(RS232_PORT_1);
-#else
-  rs232_redirect_stdout(RS232_PORT_0);
-#endif
+  rs232_init(RS232_PORT_1, USART_BAUD_9600,USART_PARITY_NONE | USART_STOP_BITS_1 | USART_DATA_BITS_8);
+
   clock_init();
 
   if(MCUSR & (1<<PORF )) PRINTD("Power-on reset.\n");
@@ -256,6 +245,8 @@ uint8_t i;
  */
   random_init(rng_get_uint8());
 
+  /* TODO: This is a hack. This is needed to created the random MAC adress. We use this value later on */
+  params_get_channel();
   /* Set addresses BEFORE starting tcpip process */
 
   rimeaddr_t addr;
@@ -536,17 +527,22 @@ extern uip_ds6_netif_t uip_ds6_if;
   }
   if (j) PRINTF("  <none>");
   PRINTF("\nRoutes [%u max]\n",UIP_DS6_ROUTE_NB);
-  for(i = 0,j=1; i < UIP_DS6_ROUTE_NB; i++) {
-    if(uip_ds6_routing_table[i].isused) {
-      ipaddr_add(&uip_ds6_routing_table[i].ipaddr);
-      PRINTF("/%u (via ", uip_ds6_routing_table[i].length);
-      ipaddr_add(&uip_ds6_routing_table[i].nexthop);
+  {
+    uip_ds6_route_t *r;
+    PRINTF("\nRoutes [%u max]\n",UIP_DS6_ROUTE_NB);
+    j = 1;
+    for(r = uip_ds6_route_list_head();
+        r != NULL;
+        r = list_item_next(r)) {
+      ipaddr_add(&r->ipaddr);
+      PRINTF("/%u (via ", r->length);
+      ipaddr_add(&r->nexthop);
  //     if(uip_ds6_routing_table[i].state.lifetime < 600) {
-        PRINTF(") %lus\n", uip_ds6_routing_table[i].state.lifetime);
- //     } else {
- //       PRINTF(")\n");
- //     }
-      j=0;
+      PRINTF(") %lus\n", r->state.lifetime);
+      //     } else {
+      //       PRINTF(")\n");
+      //     }
+      j = 0;
     }
   }
   if (j) PRINTF("  <none>");

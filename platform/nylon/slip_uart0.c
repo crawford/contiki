@@ -77,7 +77,7 @@ void
 slip_arch_init(unsigned long ubr)
 {
   rs232_set_input(SLIP_PORT, slip_input_byte);
-  stdout = &slip_stdout;
+  //stdout = &slip_stdout;
 }
 /*---------------------------------------------------------------------------*/
 /*
